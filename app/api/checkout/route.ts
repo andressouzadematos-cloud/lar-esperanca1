@@ -42,7 +42,12 @@ export async function POST(req: Request) {
         paymentMethod: "pix",
         customer: { name: nome, email, document: doc, phone: tel },
         items: [
-          {
+  {
+    offer_hash: process.env.INVICTUSPAY_OFFER_HASH!,
+    quantity: 1,
+    amount: centavos,
+  },
+],
             description: "Doação Campanha de Natal - Lar Esperança",
             quantity: 1,
             amount: centavos,
@@ -56,12 +61,17 @@ export async function POST(req: Request) {
     const dados = await resposta.json();
 
     if (!resposta.ok) {
-      console.error("InvictusPay erro:", dados);
-      return NextResponse.json(
-        { error: dados?.message || "Não foi possível gerar o PIX." },
-        { status: 502 }
-      );
-    }
+  console.error("InvictusPay erro:", JSON.stringify(dados));
+  return NextResponse.json(
+    {
+      error:
+        dados?.message ||
+        dados?.error ||
+        `Falha na InvictusPay (HTTP ${resposta.status}).`,
+    },
+    { status: 502 }
+  );
+}
 
     const tx = dados?.data ?? dados;
     const txId = tx?.id ?? tx?.transaction?.id;

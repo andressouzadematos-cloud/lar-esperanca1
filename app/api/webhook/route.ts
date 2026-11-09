@@ -1,122 +1,46 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
-const BASE = "https://api.invictuspayv2.com.br/api/v1";
-
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { nome, email, documento, telefone, valor } = body;
+    const evento = req.headers.get("X-Webhook-Event") || "";
+    const payload = await req.json();
 
-    if (!nome || !email || !documento || !telefone || !valor) {
-      return NextResponse.json(
-        { error: "Preencha todos os campos." },
-        { status: 400 }
-      );
-    }
-
-    const centavos = Math.round(Number(valor) * 100);
-
-    if (centavos < 500) {
-      return NextResponse.json(
-        { error: "O valor mínimo de doação é R$ 5,00." },
-        { status: 400 }
-      );
-    }
-
-    const doc = String(documento).replace(/\D/g, "");
-    const tel = String(telefone).replace(/\D/g, "");
-
-    if (doc.length !== 11 && doc.length !== 14) {
-      return NextResponse.json({ error: "CPF ou CNPJ inválido." }, { status: 400 });
-    }
-
-    if (tel.length < 10 || tel.length > 11) {
-      return NextResponse.json({ error: "Telefone inválido." }, { status: 400 });
-    }
-
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-
-    const resposta = await fetch(`${BASE}/transactions`, {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-        "X-Api-Key": process.env.INVICTUSPAY_API_KEY!,
-      },
-      body: JSON.stringify({
-        amount: centavos,
-        paymentMethod: "pix",
-        customer: {
-          name: nome,
-          email,
-          document: doc,
-          phone: tel,
-        },
-        items: [
-          {
-            description: "Doação Campanha de Natal - Lar Esperança",
-            quantity: 1,
-            amount: centavos,
-          },
-        ],
-        pix: { expirationInSeconds: 1800 },
-        postbackUrl: `${siteUrl}/api/webhook`,
-      }),
-    });
-
-    const dados = await resposta.json();
-
-    if (!resposta.ok) {
-      console.error("InvictusPay erro:", dados);
-      return NextResponse.json(
-        { error: dados?.message || "Não foi possível gerar o PIX." },
-        { status: 502 }
-      );
-    }
-
-    const tx = dados?.data ?? dados;
-    const txId = tx?.id ?? tx?.transaction?.id;
-    const qrCode = tx?.pix?.qr_code ?? tx?.pix?.qrcode ?? tx?.qr_code ?? null;
-    const qrTexto =
-      tx?.pix?.qr_code_text ??
-      tx?.pix?.emv ??
-      tx?.pix?.copy_paste ??
-      tx?.qr_code_text ??
-      null;
+    const tx = payload?.transaction;
+    const txId = tx?.id;
 
     if (!txId) {
-      console.error("Resposta sem ID:", dados);
-      return NextResponse.json(
-        { error: "Resposta inesperada do provedor." },
-        { status: 502 }
-      );
+      return NextResponse.json({ ok: true });
     }
 
-    await supabaseAdmin.from("doacoes").insert({
-      tx_id: txId,
-      nome,
-      email,
-      documento: doc,
-      telefone: tel,
-      valor_centavos: centavos,
-      status: "pending",
-      metodo: "pix",
-      qr_code: qrCode,
-      qr_code_texto: qrTexto,
-    });
+    const mapa: Record<string, string> = {
+      "EVENT:CHARGE_PAID": "paid",
+      "EVENT:CHARGE_EXPIRED": "expired",
+      "EVENT:CHARGE_REFUND": "refunded",
+      "EVENT:CHARGE_CHARGEBACK": "chargeback",
+      "EVENT:CHARGE_PRE_CHARGEBACK": "pre_chargeback",
+      "EVENT:CHARGE_IN_DISPUTE": "in_dispute",
+    };
 
-    return NextResponse.json({
-      txId,
-      qrCode,
-      qrCodeTexto: qrTexto,
-      valor: centavos / 100,
-    });
+    const status = mapa[evento] || tx?.status || "processing";
+
+    const atualizacao: Record<string, unknown> = {
+      status,
+      atualizado_em: new Date().toISOString(),
+    };
+
+    if (status === "paid") {
+      atualizacao.pago_em = tx?.paid_at || new Date().toISOString();
+    }
+
+    await supabaseAdmin
+      .from("doacoes")
+      .update(atualizacao)
+      .eq("tx_id", txId);
+
+    return NextResponse.json({ ok: true });
   } catch (erro) {
-    console.error("Erro no checkout:", erro);
-    return NextResponse.json(
-      { error: "Erro interno ao processar a doação." },
-      { status: 500 }
-    );
+    console.error("Erro no webhook:", erro);
+    return NextResponse.json({ ok: true });
   }
 }

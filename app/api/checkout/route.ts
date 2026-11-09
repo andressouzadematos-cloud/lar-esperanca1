@@ -5,23 +5,16 @@ const BASE = "https://api.invictuspayv2.com.br/api/v1";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { nome, email, documento, telefone, valor } = body;
+    const { nome, email, documento, telefone, valor } = await req.json();
 
     if (!nome || !email || !documento || !telefone || !valor) {
-      return NextResponse.json(
-        { error: "Preencha todos os campos." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Preencha todos os campos." }, { status: 400 });
     }
 
     const centavos = Math.round(Number(valor) * 100);
 
     if (centavos < 500) {
-      return NextResponse.json(
-        { error: "O valor mínimo de doação é R$ 5,00." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "O valor mínimo é R$ 5,00." }, { status: 400 });
     }
 
     const doc = String(documento).replace(/\D/g, "");
@@ -47,12 +40,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         amount: centavos,
         paymentMethod: "pix",
-        customer: {
-          name: nome,
-          email,
-          document: doc,
-          phone: tel,
-        },
+        customer: { name: nome, email, document: doc, phone: tel },
         items: [
           {
             description: "Doação Campanha de Natal - Lar Esperança",
@@ -79,18 +67,11 @@ export async function POST(req: Request) {
     const txId = tx?.id ?? tx?.transaction?.id;
     const qrCode = tx?.pix?.qr_code ?? tx?.pix?.qrcode ?? tx?.qr_code ?? null;
     const qrTexto =
-      tx?.pix?.qr_code_text ??
-      tx?.pix?.emv ??
-      tx?.pix?.copy_paste ??
-      tx?.qr_code_text ??
-      null;
+      tx?.pix?.qr_code_text ?? tx?.pix?.emv ?? tx?.pix?.copy_paste ?? tx?.qr_code_text ?? null;
 
     if (!txId) {
       console.error("Resposta sem ID:", dados);
-      return NextResponse.json(
-        { error: "Resposta inesperada do provedor." },
-        { status: 502 }
-      );
+      return NextResponse.json({ error: "Resposta inesperada do provedor." }, { status: 502 });
     }
 
     await supabaseAdmin.from("doacoes").insert({
@@ -106,17 +87,9 @@ export async function POST(req: Request) {
       qr_code_texto: qrTexto,
     });
 
-    return NextResponse.json({
-      txId,
-      qrCode,
-      qrCodeTexto: qrTexto,
-      valor: centavos / 100,
-    });
+    return NextResponse.json({ txId, qrCode, qrCodeTexto: qrTexto, valor: centavos / 100 });
   } catch (erro) {
     console.error("Erro no checkout:", erro);
-    return NextResponse.json(
-      { error: "Erro interno ao processar a doação." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro interno ao processar a doação." }, { status: 500 });
   }
 }

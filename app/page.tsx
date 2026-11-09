@@ -282,7 +282,7 @@ export default function Home() {
       <footer className="bg-[#052E16] py-14">
         <div className="mx-auto max-w-6xl px-5 text-center">
           <p className="text-lg font-extrabold text-white">Lar Esperança</p>
-          <p className="mt-2 text-sm text-green-200">CNPJ 00.000.000/0001-00</p>
+          <p className="mt-2 text-sm text-green-200">CNPJ 71.745.186/0001-56</p>
           <div className="mt-6 flex flex-wrap justify-center gap-6 text-sm font-semibold text-green-200">
             <a href="#" className="hover:text-white">Transparência</a>
             <a href="#" className="hover:text-white">Contato</a>

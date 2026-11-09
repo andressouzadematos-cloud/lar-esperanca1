@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function GET(_req: Request, { params }: { params: { txId: string } }) {
-  const { data } = await supabaseAdmin
+  const { data } = await getSupabaseAdmin()
     .from("doacoes")
     .select("status, valor_centavos")
     .eq("tx_id", params.txId)

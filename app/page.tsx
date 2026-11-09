@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 const VALORES = [25, 50, 100, 250, 500];
 
@@ -56,6 +57,7 @@ const FAQ = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const [valor, setValor] = useState(50);
   const [outro, setOutro] = useState("");
   const [aberto, setAberto] = useState<number | null>(0);
@@ -63,7 +65,7 @@ export default function Home() {
   const valorFinal = outro ? Number(outro) || 0 : valor;
 
   function doar() {
-    alert(`Redirecionando para o pagamento de R$ ${valorFinal}...`);
+    router.push(`/doar?valor=${valorFinal}`);
   }
 
   return (

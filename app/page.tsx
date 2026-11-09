@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const VALORES = [25, 50, 100, 250, 500];
+const VALORES = [5, 10, 25, 50, 100, 250, 500];
 
 const CARDS = [
   {
@@ -44,7 +44,7 @@ const FAQ = [
   },
   {
     pergunta: "Posso doar qualquer valor?",
-    resposta: "Sim. Qualquer valor ajuda. R$ 25 já compra um brinquedo.",
+    resposta: "Você pode escolher entre R$ 5, R$ 10, R$ 25, R$ 50, R$ 100, R$ 250 ou R$ 500. Qualquer valor ajuda.",
   },
   {
     pergunta: "Recebo comprovante?",
@@ -59,13 +59,10 @@ const FAQ = [
 export default function Home() {
   const router = useRouter();
   const [valor, setValor] = useState(50);
-  const [outro, setOutro] = useState("");
   const [aberto, setAberto] = useState<number | null>(0);
 
-  const valorFinal = outro ? Number(outro) || 0 : valor;
-
   function doar() {
-    router.push(`/doar?valor=${valorFinal}`);
+    router.push(`/doar?valor=${valor}`);
   }
 
   return (
@@ -95,7 +92,6 @@ export default function Home() {
           style={{ backgroundImage: "url('/hero.png')" }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#052E16]/95 via-[#052E16]/90 to-[#052E16]/75 md:bg-gradient-to-r md:from-[#052E16]/95 md:via-[#052E16]/88 md:to-green-600/40" />
-
         <div className="relative mx-auto grid max-w-6xl gap-10 px-5 py-20 md:grid-cols-2 md:items-center md:py-28">
           <div>
             <span className="inline-block rounded-full bg-white px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-green-900">
@@ -122,12 +118,10 @@ export default function Home() {
             </p>
             <p className="mt-2 text-4xl font-black text-green-900">R$ 18.420</p>
             <p className="mt-1 text-sm text-gray-500">de R$ 45.000 de meta</p>
-
             <div className="mt-5 h-3 w-full overflow-hidden rounded-full bg-green-100">
               <div className="h-full rounded-full bg-green-600" style={{ width: "41%" }} />
             </div>
             <p className="mt-2 text-right text-sm font-bold text-green-700">41%</p>
-
             <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-5">
               <span className="text-sm font-semibold text-gray-600">247 pessoas já doaram</span>
               <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-800">
@@ -167,12 +161,9 @@ export default function Home() {
             {VALORES.map((v) => (
               <button
                 key={v}
-                onClick={() => {
-                  setValor(v);
-                  setOutro("");
-                }}
+                onClick={() => setValor(v)}
                 className={`rounded-xl border-2 px-7 py-4 text-lg font-bold transition ${
-                  valor === v && !outro
+                  valor === v
                     ? "border-green-600 bg-green-600 text-white"
                     : "border-gray-200 bg-white text-gray-700 hover:border-green-600"
                 }`}
@@ -180,20 +171,12 @@ export default function Home() {
                 R$ {v}
               </button>
             ))}
-            <input
-              type="number"
-              placeholder="Outro valor"
-              value={outro}
-              onChange={(e) => setOutro(e.target.value)}
-              className="w-40 rounded-xl border-2 border-gray-200 px-5 py-4 text-lg font-bold text-gray-700 outline-none focus:border-green-600"
-            />
           </div>
-
           <button
             onClick={doar}
             className="mt-10 w-full rounded-full bg-green-600 px-10 py-5 text-lg font-extrabold text-white shadow-lg transition hover:bg-green-700 md:w-auto"
           >
-            Doar R$ {valorFinal} agora
+            Doar R$ {valor} agora
           </button>
         </div>
       </section>

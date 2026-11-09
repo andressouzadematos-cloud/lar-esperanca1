@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 const BASE = "https://api.invictuspayv2.com.br/api/v1";
 
@@ -40,15 +40,15 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         amount: centavos,
         paymentMethod: "pix",
-        customer: { name: nome, email, document: doc, phone: tel },
+        customer: {
+          name: nome,
+          email,
+          document: doc,
+          phone: tel,
+        },
         items: [
-  {
-    offer_hash: process.env.INVICTUSPAY_OFFER_HASH!,
-    quantity: 1,
-    amount: centavos,
-  },
-],
-            description: "Doação Campanha de Natal - Lar Esperança",
+          {
+            offer_hash: process.env.INVICTUSPAY_OFFER_HASH!,
             quantity: 1,
             amount: centavos,
           },
@@ -61,17 +61,17 @@ export async function POST(req: Request) {
     const dados = await resposta.json();
 
     if (!resposta.ok) {
-  console.error("InvictusPay erro:", JSON.stringify(dados));
-  return NextResponse.json(
-    {
-      error:
-        dados?.message ||
-        dados?.error ||
-        `Falha na InvictusPay (HTTP ${resposta.status}).`,
-    },
-    { status: 502 }
-  );
-}
+      console.error("InvictusPay erro:", JSON.stringify(dados));
+      return NextResponse.json(
+        {
+          error:
+            dados?.message ||
+            dados?.error ||
+            `Falha na InvictusPay (HTTP ${resposta.status}).`,
+        },
+        { status: 502 }
+      );
+    }
 
     const tx = dados?.data ?? dados;
     const txId = tx?.id ?? tx?.transaction?.id;
@@ -80,11 +80,11 @@ export async function POST(req: Request) {
       tx?.pix?.qr_code_text ?? tx?.pix?.emv ?? tx?.pix?.copy_paste ?? tx?.qr_code_text ?? null;
 
     if (!txId) {
-      console.error("Resposta sem ID:", dados);
+      console.error("Resposta sem ID:", JSON.stringify(dados));
       return NextResponse.json({ error: "Resposta inesperada do provedor." }, { status: 502 });
     }
 
-    await supabaseAdmin.from("doacoes").insert({
+    await getSupabaseAdmin().from("doacoes").insert({
       tx_id: txId,
       nome,
       email,

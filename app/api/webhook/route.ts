@@ -9,9 +9,7 @@ export async function POST(req: Request) {
     const tx = payload?.transaction;
     const txId = tx?.id;
 
-    if (!txId) {
-      return NextResponse.json({ ok: true });
-    }
+    if (!txId) return NextResponse.json({ ok: true });
 
     const mapa: Record<string, string> = {
       "EVENT:CHARGE_PAID": "paid",
@@ -33,10 +31,7 @@ export async function POST(req: Request) {
       atualizacao.pago_em = tx?.paid_at || new Date().toISOString();
     }
 
-    await supabaseAdmin
-      .from("doacoes")
-      .update(atualizacao)
-      .eq("tx_id", txId);
+    await supabaseAdmin.from("doacoes").update(atualizacao).eq("tx_id", txId);
 
     return NextResponse.json({ ok: true });
   } catch (erro) {

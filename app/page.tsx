@@ -75,7 +75,9 @@ export default function Home() {
             <svg viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7 text-green-600">
               <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
             </svg>
-            <span className="text-lg font-extrabold tracking-tight text-green-900">Lar Esperança</span>
+            <span className="text-lg font-extrabold tracking-tight text-green-900">
+              Lar Esperança
+            </span>
           </div>
           <button
             onClick={doar}
@@ -87,7 +89,7 @@ export default function Home() {
       </header>
 
       {/* HERO */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden bg-[#052E16]">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url('/hero.png')" }}
@@ -114,7 +116,7 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="rounded-3xl bg-white/96 p-8 shadow-[0_20px_50px_rgba(0,0,0,0.25)] backdrop-blur">
+          <div className="rounded-3xl bg-white/95 p-8 shadow-[0_20px_50px_rgba(0,0,0,0.25)] backdrop-blur">
             <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
               Arrecadado até agora
             </p>
@@ -301,4 +303,6 @@ export default function Home() {
         </div>
       </footer>
     </main>
+  );
+}
   );

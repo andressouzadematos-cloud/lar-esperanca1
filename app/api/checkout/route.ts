@@ -3,6 +3,17 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 
 const BASE = "https://api.invictuspayv2.com.br/api/v1";
 
+// Cada valor tem seu próprio produto na InvictusPay (preço fixo por produto)
+const OFERTAS: Record<number, string | undefined> = {
+  500: process.env.INVICTUSPAY_OFFER_5,
+  1000: process.env.INVICTUSPAY_OFFER_10,
+  2500: process.env.INVICTUSPAY_OFFER_25,
+  5000: process.env.INVICTUSPAY_OFFER_50,
+  10000: process.env.INVICTUSPAY_OFFER_100,
+  25000: process.env.INVICTUSPAY_OFFER_250,
+  50000: process.env.INVICTUSPAY_OFFER_500,
+};
+
 export async function POST(req: Request) {
   try {
     const { nome, email, documento, telefone, valor } = await req.json();
@@ -15,6 +26,15 @@ export async function POST(req: Request) {
 
     if (centavos < 500) {
       return NextResponse.json({ error: "O valor mínimo é R$ 5,00." }, { status: 400 });
+    }
+
+    const offerHash = OFERTAS[centavos];
+
+    if (!offerHash) {
+      return NextResponse.json(
+        { error: "Valor não disponível para doação." },
+        { status: 400 }
+      );
     }
 
     const doc = String(documento).replace(/\D/g, "");
@@ -48,7 +68,7 @@ export async function POST(req: Request) {
         },
         items: [
           {
-            offer_hash: process.env.INVICTUSPAY_OFFER_HASH!,
+            offer_hash: offerHash,
             quantity: 1,
             amount: centavos,
           },

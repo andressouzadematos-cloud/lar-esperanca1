@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
 const VALORES = [25, 50, 100, 250, 500];
 
-export default function Doar() {
-  const [valor, setValor] = useState(50);
+function FormularioDoacao() {
+  const params = useSearchParams();
+  const inicial = Number(params.get("valor")) || 50;
+
+  const [valor, setValor] = useState(inicial);
   const [outro, setOutro] = useState("");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -24,6 +28,23 @@ export default function Doar() {
 
   const valorFinal = outro ? Number(outro) || 0 : valor;
 
+  useEffect(() => {
+    if (!pix) return;
+    const intervalo = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/status/${pix.txId}`);
+        const d = await r.json();
+        setStatus(d.status);
+        if (["paid", "expired", "failed", "cancelled"].includes(d.status)) {
+          clearInterval(intervalo);
+        }
+      } catch {
+        /* segue tentando */
+      }
+    }, 4000);
+    return () => clearInterval(intervalo);
+  }, [pix]);
+
   async function gerarPix(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
@@ -33,13 +54,7 @@ export default function Doar() {
       const r = await fetch("/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          nome,
-          email,
-          documento,
-          telefone,
-          valor: valorFinal,
-        }),
+        body: JSON.stringify({ nome, email, documento, telefone, valor: valorFinal }),
       });
 
       const dados = await r.json();
@@ -51,29 +66,11 @@ export default function Doar() {
 
       setPix(dados);
       setStatus("pending");
-      iniciarPolling(dados.txId);
     } catch {
       setErro("Falha de conexão. Tente novamente.");
     } finally {
       setCarregando(false);
     }
-  }
-
-  function iniciarPolling(txId: string) {
-    const intervalo = setInterval(async () => {
-      try {
-        const r = await fetch(`/api/status/${txId}`);
-        const d = await r.json();
-        setStatus(d.status);
-        if (d.status === "paid" || d.status === "expired" || d.status === "failed") {
-          clearInterval(intervalo);
-        }
-      } catch {
-        /* segue tentando */
-      }
-    }, 4000);
-
-    setTimeout(() => clearInterval(intervalo), 30 * 60 * 1000);
   }
 
   async function copiar() {
@@ -112,16 +109,18 @@ export default function Doar() {
     return (
       <main className="min-h-screen bg-[#F0FDF4] px-5 py-16">
         <div className="mx-auto max-w-md rounded-3xl bg-white p-8 shadow-xl">
-          <h1 className="text-center text-2xl font-black text-green-900">
-            Pague com PIX
-          </h1>
+          <h1 className="text-center text-2xl font-black text-green-900">Pague com PIX</h1>
           <p className="mt-2 text-center text-sm text-gray-500">
             Doação de R$ {pix.valor.toFixed(2).replace(".", ",")}
           </p>
 
           {pix.qrCode && (
             <img
-              src={pix.qrCode.startsWith("data:") ? pix.qrCode : `data:image/png;base64,${pix.qrCode}`}
+              src={
+                pix.qrCode.startsWith("data:")
+                  ? pix.qrCode
+                  : `data:image/png;base64,${pix.qrCode}`
+              }
               alt="QR Code do PIX"
               className="mx-auto mt-6 h-56 w-56 rounded-xl border border-gray-100"
             />
@@ -171,9 +170,7 @@ export default function Doar() {
         <h1 className="mt-6 text-3xl font-black tracking-tight text-green-900">
           Faça sua doação
         </h1>
-        <p className="mt-2 text-gray-600">
-          Pagamento por PIX. Confirmação em segundos.
-        </p>
+        <p className="mt-2 text-gray-600">Pagamento por PIX. Confirmação em segundos.</p>
 
         <form onSubmit={gerarPix} className="mt-8 space-y-5">
           <div>
@@ -262,9 +259,7 @@ export default function Doar() {
             disabled={carregando}
             className="w-full rounded-full bg-green-600 py-5 text-lg font-extrabold text-white shadow-lg transition hover:bg-green-700 disabled:opacity-60"
           >
-            {carregando
-              ? "Gerando PIX..."
-              : `Doar R$ ${valorFinal.toFixed(2).replace(".", ",")}`}
+            {carregando ? "Gerando PIX..." : `Doar R$ ${valorFinal.toFixed(2).replace(".", ",")}`}
           </button>
 
           <p className="text-center text-xs text-gray-400">
@@ -273,5 +268,13 @@ export default function Doar() {
         </form>
       </div>
     </main>
+  );
+}
+
+export default function Doar() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F0FDF4]" />}>
+      <FormularioDoacao />
+    </Suspense>
   );
 }

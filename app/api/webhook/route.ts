@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       atualizacao.pago_em = tx?.paid_at || new Date().toISOString();
     }
 
-    await supabaseAdmin.from("doacoes").update(atualizacao).eq("tx_id", txId);
+    await getSupabaseAdmin().from("doacoes").update(atualizacao).eq("tx_id", txId);
 
     return NextResponse.json({ ok: true });
   } catch (erro) {

@@ -68,7 +68,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#F0FDF4] text-[#14211A]">
-      {/* HEADER */}
       <header className="sticky top-0 z-50 border-b border-green-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <div className="flex items-center gap-2">
@@ -88,7 +87,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* HERO */}
       <section className="relative overflow-hidden bg-[#052E16]">
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -138,7 +136,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* O QUE SUA DOAÇÃO FAZ */}
       <section className="mx-auto max-w-6xl px-5 py-20">
         <h2 className="text-center text-3xl font-black tracking-tight text-green-900 md:text-4xl">
           O que sua doação faz
@@ -159,7 +156,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SELETOR DE VALORES */}
       <section className="bg-white py-20">
         <div className="mx-auto max-w-3xl px-5 text-center">
           <h2 className="text-3xl font-black tracking-tight text-green-900 md:text-4xl">
@@ -200,7 +196,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* HISTÓRIA */}
       <section className="mx-auto max-w-6xl px-5 py-20">
         <div className="grid items-center gap-12 md:grid-cols-2">
           <img
@@ -223,7 +218,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TRANSPARÊNCIA */}
       <section className="bg-green-900 py-20">
         <div className="mx-auto grid max-w-6xl gap-10 px-5 text-center md:grid-cols-4">
           {[
@@ -242,7 +236,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FAQ */}
       <section className="mx-auto max-w-3xl px-5 py-20">
         <h2 className="text-center text-3xl font-black tracking-tight text-green-900 md:text-4xl">
           Perguntas frequentes
@@ -272,7 +265,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA FINAL */}
       <section className="bg-green-600 py-20">
         <div className="mx-auto max-w-3xl px-5 text-center">
           <h2 className="text-3xl font-black tracking-tight text-white md:text-5xl">
@@ -287,7 +279,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer className="bg-[#052E16] py-14">
         <div className="mx-auto max-w-6xl px-5 text-center">
           <p className="text-lg font-extrabold text-white">Lar Esperança</p>
@@ -305,4 +296,3 @@ export default function Home() {
     </main>
   );
 }
-  );

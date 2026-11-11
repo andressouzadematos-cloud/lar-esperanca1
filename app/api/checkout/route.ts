@@ -1,18 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-const BASE = "https://api.invictuspayv2.com.br/api/v1";
+const BASE = "https://api.nexuspag.com/api/v1";
 
-// Cada valor tem seu próprio produto na InvictusPay (preço fixo por produto)
-const OFERTAS: Record<number, string | undefined> = {
-  500: process.env.INVICTUSPAY_OFFER_5,
-  1000: process.env.INVICTUSPAY_OFFER_10,
-  2500: process.env.INVICTUSPAY_OFFER_25,
-  5000: process.env.INVICTUSPAY_OFFER_50,
-  10000: process.env.INVICTUSPAY_OFFER_100,
-  25000: process.env.INVICTUSPAY_OFFER_250,
-  50000: process.env.INVICTUSPAY_OFFER_500,
-};
+const VALORES_PERMITIDOS = [500, 1000, 2500, 5000, 10000, 25000, 50000];
 
 export async function POST(req: Request) {
   try {
@@ -24,13 +15,7 @@ export async function POST(req: Request) {
 
     const centavos = Math.round(Number(valor) * 100);
 
-    if (centavos < 500) {
-      return NextResponse.json({ error: "O valor mínimo é R$ 5,00." }, { status: 400 });
-    }
-
-    const offerHash = OFERTAS[centavos];
-
-    if (!offerHash) {
+    if (!VALORES_PERMITIDOS.includes(centavos)) {
       return NextResponse.json(
         { error: "Valor não disponível para doação." },
         { status: 400 }
@@ -49,55 +34,50 @@ export async function POST(req: Request) {
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const externalId = `lar-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const resposta = await fetch(`${BASE}/transactions`, {
+    const resposta = await fetch(`${BASE}/pix/create`, {
       method: "POST",
       headers: {
         accept: "application/json",
         "content-type": "application/json",
-        "X-Api-Key": process.env.INVICTUSPAY_API_KEY!,
+        Authorization: `Bearer ${process.env.NEXUSPAG_API_KEY}`,
       },
       body: JSON.stringify({
         amount: centavos,
-        paymentMethod: "pix",
+        description: `Doacao Lar Esperanca - R$ ${(centavos / 100).toFixed(2)}`,
+        external_id: externalId,
+        webhook_url: `${siteUrl}/api/webhook`,
+        expiration: 1800,
         customer: {
           name: nome,
           email,
           document: doc,
           phone: tel,
         },
-        items: [
-          {
-            offer_hash: offerHash,
-            quantity: 1,
-            amount: centavos,
-          },
-        ],
-        pix: { expirationInSeconds: 1800 },
-        postbackUrl: `${siteUrl}/api/webhook`,
       }),
     });
 
     const dados = await resposta.json();
 
     if (!resposta.ok) {
-      console.error("InvictusPay erro:", JSON.stringify(dados));
+      console.error("NexusPag erro:", JSON.stringify(dados));
       return NextResponse.json(
         {
           error:
             dados?.message ||
             dados?.error ||
-            `Falha na InvictusPay (HTTP ${resposta.status}).`,
+            `Falha na NexusPag (HTTP ${resposta.status}).`,
         },
         { status: 502 }
       );
     }
 
     const tx = dados?.data ?? dados;
-    const txId = tx?.id ?? tx?.transaction?.id;
-    const qrCode = tx?.pix?.qr_code ?? tx?.pix?.qrcode ?? tx?.qr_code ?? null;
+    const txId = tx?.id ?? tx?.transaction_id ?? tx?.txid;
+    const qrCode = tx?.qr_code ?? tx?.qrcode ?? tx?.pix?.qr_code ?? null;
     const qrTexto =
-      tx?.pix?.qr_code_text ?? tx?.pix?.emv ?? tx?.pix?.copy_paste ?? tx?.qr_code_text ?? null;
+      tx?.qr_code_text ?? tx?.copy_paste ?? tx?.emv ?? tx?.pix?.qr_code_text ?? null;
 
     if (!txId) {
       console.error("Resposta sem ID:", JSON.stringify(dados));
@@ -105,7 +85,7 @@ export async function POST(req: Request) {
     }
 
     await getSupabaseAdmin().from("doacoes").insert({
-      tx_id: txId,
+      tx_id: String(txId),
       nome,
       email,
       documento: doc,
@@ -117,7 +97,12 @@ export async function POST(req: Request) {
       qr_code_texto: qrTexto,
     });
 
-    return NextResponse.json({ txId, qrCode, qrCodeTexto: qrTexto, valor: centavos / 100 });
+    return NextResponse.json({
+      txId: String(txId),
+      qrCode,
+      qrCodeTexto: qrTexto,
+      valor: centavos / 100,
+    });
   } catch (erro) {
     console.error("Erro no checkout:", erro);
     return NextResponse.json({ error: "Erro interno ao processar a doação." }, { status: 500 });

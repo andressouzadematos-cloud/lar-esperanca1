@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-const BASE = "https://api.nexuspag.com/api/v1";
+const BASE = "https://nexuspag.com";
 
 const VALORES_PERMITIDOS = [500, 1000, 2500, 5000, 10000, 25000, 50000];
 
@@ -36,25 +36,19 @@ export async function POST(req: Request) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
     const externalId = `lar-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const resposta = await fetch(`${BASE}/pix/create`, {
+    const resposta = await fetch(`${BASE}/api/pix/create`, {
       method: "POST",
       headers: {
         accept: "application/json",
         "content-type": "application/json",
-        Authorization: `Bearer ${process.env.NEXUSPAG_API_KEY}`,
+        "x-api-key": process.env.NEXUSPAG_API_KEY!,
       },
       body: JSON.stringify({
-        amount: centavos,
-        description: `Doacao Lar Esperanca - R$ ${(centavos / 100).toFixed(2)}`,
+        amount: centavos / 100,
+        description: `Doacao Lar Esperanca - ${nome}`,
         external_id: externalId,
         webhook_url: `${siteUrl}/api/webhook`,
         expiration: 1800,
-        customer: {
-          name: nome,
-          email,
-          document: doc,
-          phone: tel,
-        },
       }),
     });
 
@@ -73,11 +67,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const tx = dados?.data ?? dados;
-    const txId = tx?.id ?? tx?.transaction_id ?? tx?.txid;
-    const qrCode = tx?.qr_code ?? tx?.qrcode ?? tx?.pix?.qr_code ?? null;
-    const qrTexto =
-      tx?.qr_code_text ?? tx?.copy_paste ?? tx?.emv ?? tx?.pix?.qr_code_text ?? null;
+    const tx = dados?.transaction ?? dados;
+
+    const txId = tx?.id ?? tx?.txid;
+    const qrCode = tx?.qr_code_base64 ?? null;
+    const qrTexto = tx?.pix_copia_cola ?? null;
 
     if (!txId) {
       console.error("Resposta sem ID:", JSON.stringify(dados));

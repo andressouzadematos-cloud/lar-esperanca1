@@ -2,41 +2,7 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-type PayloadNexus = {
-  event?: string;
-  type?: string;
-  status?: string;
-  data?: {
-    id?: string;
-    txid?: string;
-    transaction_id?: string;
-    status?: string;
-    paid_at?: string;
-  };
-  transaction?: {
-    id?: string;
-    txid?: string;
-    status?: string;
-    paid_at?: string;
-  };
-};
-
-function extrairTxId(payload: PayloadNexus): string | null {
-  return (
-    payload?.data?.id ||
-    payload?.data?.txid ||
-    payload?.data?.transaction_id ||
-    payload?.transaction?.id ||
-    payload?.transaction?.txid ||
-    null
-  );
-}
-
-function extrairStatus(payload: PayloadNexus): string | null {
-  return payload?.data?.status || payload?.transaction?.status || payload?.status || null;
-}
-
-function assinaturaValida(corpoBruto: string, assinatura: string | null): boolean {
+function assinaturaValida(corpoBruto: string, header: string | null): boolean {
   const segredo = process.env.NEXUSPAG_WEBHOOK_SECRET;
 
   if (!segredo) {
@@ -44,13 +10,32 @@ function assinaturaValida(corpoBruto: string, assinatura: string | null): boolea
     return false;
   }
 
-  if (!assinatura) {
+  if (!header) {
     console.error("Requisição sem header de assinatura.");
     return false;
   }
 
-  const esperado = createHmac("sha256", segredo).update(corpoBruto).digest("hex");
-  const recebido = assinatura.replace(/^sha256=/, "").trim();
+  const partes = Object.fromEntries(
+    header.split(",").map((p) => {
+      const [k, v] = p.split("=");
+      return [k?.trim(), v?.trim()];
+    })
+  );
+
+  const timestamp = partes["t"];
+  const recebido = partes["v1"];
+
+  if (!timestamp || !recebido) return false;
+
+  const agora = Math.floor(Date.now() / 1000);
+  if (Math.abs(agora - Number(timestamp)) > 300) {
+    console.error("Timestamp do webhook fora da janela de tolerância.");
+    return false;
+  }
+
+  const esperado = createHmac("sha256", segredo)
+    .update(`${timestamp}.${corpoBruto}`)
+    .digest("hex");
 
   if (recebido.length !== esperado.length) return false;
 
@@ -64,91 +49,45 @@ function assinaturaValida(corpoBruto: string, assinatura: string | null): boolea
 export async function POST(req: Request) {
   try {
     const corpoBruto = await req.text();
+    const evento = req.headers.get("X-Webhook-Event") || "";
 
-    const assinatura =
-      req.headers.get("x-nexuspag-signature") ||
-      req.headers.get("x-signature") ||
-      req.headers.get("x-webhook-signature");
+    const assinatura = req.headers.get("X-Webhook-Signature");
 
     if (!assinaturaValida(corpoBruto, assinatura)) {
       console.error("Webhook com assinatura inválida.");
       return NextResponse.json({ error: "Assinatura inválida." }, { status: 401 });
     }
 
-    let payload: PayloadNexus;
+    const payload = JSON.parse(corpoBruto);
 
-    try {
-      payload = JSON.parse(corpoBruto);
-    } catch {
-      console.error("Webhook com JSON inválido.");
-      return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
-    }
+    const txId = payload?.transaction_id || payload?.txid;
+    const status = payload?.status;
 
-    const txId = extrairTxId(payload);
-    const status = extrairStatus(payload);
-    const evento = payload?.event || payload?.type || "";
+    console.log("Webhook Nexus recebido:", { evento, txId, status });
 
-    console.log("Webhook Nexus recebido:", { txId, status, evento });
+    if (!txId) return NextResponse.json({ ok: true });
 
-    if (!txId) {
-      return NextResponse.json({ ok: true });
-    }
+    const mapa: Record<string, string> = {
+      "payment.confirmed": "paid",
+      "pix.payment.confirmed": "paid",
+    };
 
-    const statusNormalizado = String(status || "").toLowerCase();
-
-    const pago = [
-      "paid",
-      "approved",
-      "completed",
-      "confirmed",
-      "succeeded",
-      "pago",
-      "aprovado",
-    ].includes(statusNormalizado);
-
-    const falhou = [
-      "failed",
-      "refused",
-      "canceled",
-      "cancelled",
-      "expired",
-      "rejected",
-    ].includes(statusNormalizado);
-
-    const reembolsado = ["refunded", "chargeback", "in_dispute", "pre_chargeback"].includes(
-      statusNormalizado
-    );
-
-    const novoStatus = pago
-      ? "paid"
-      : falhou
-        ? statusNormalizado === "expired"
-          ? "expired"
-          : "failed"
-        : reembolsado
-          ? statusNormalizado
-          : "processing";
+    const novoStatus = mapa[evento] || status || "processing";
 
     const supabase = getSupabaseAdmin();
 
-    const { data: doacao, error: erroBusca } = await supabase
+    const { data: doacao } = await supabase
       .from("doacoes")
       .select("tx_id, status")
-      .eq("tx_id", txId)
+      .eq("tx_id", String(txId))
       .maybeSingle();
-
-    if (erroBusca) {
-      console.error("Erro ao buscar doação:", JSON.stringify(erroBusca));
-      return NextResponse.json({ error: "Erro ao buscar doação." }, { status: 500 });
-    }
 
     if (!doacao) {
       console.error("Doação não encontrada para txId:", txId);
-      return NextResponse.json({ ok: true, aviso: "Doação não encontrada." });
+      return NextResponse.json({ ok: true });
     }
 
     if (doacao.status === "paid" && novoStatus === "paid") {
-      console.log("Doação já estava paga, ignorando duplicata:", txId);
       return NextResponse.json({ ok: true, duplicado: true });
     }
 
@@ -158,21 +97,10 @@ export async function POST(req: Request) {
     };
 
     if (novoStatus === "paid") {
-      atualizacao.pago_em =
-        payload?.data?.paid_at || payload?.transaction?.paid_at || new Date().toISOString();
+      atualizacao.pago_em = payload?.paid_at || new Date().toISOString();
     }
 
-    const { error: erroUpdate } = await supabase
-      .from("doacoes")
-      .update(atualizacao)
-      .eq("tx_id", txId);
-
-    if (erroUpdate) {
-      console.error("Erro ao atualizar doação:", JSON.stringify(erroUpdate));
-      return NextResponse.json({ error: "Erro ao atualizar doação." }, { status: 500 });
-    }
-
-    console.log("Doação atualizada:", { txId, de: doacao.status, para: novoStatus });
+    await supabase.from("doacoes").update(atualizacao).eq("tx_id", String(txId));
 
     return NextResponse.json({ ok: true, status: novoStatus });
   } catch (erro) {

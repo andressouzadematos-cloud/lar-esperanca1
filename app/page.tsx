@@ -1,7 +1,7 @@
 "use client";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { trackMeta } from "@/lib/meta-client";
 
 const VALORES = [5, 10, 25, 50, 100, 250, 500];
 
@@ -61,7 +61,22 @@ export default function Home() {
   const [valor, setValor] = useState(50);
   const [aberto, setAberto] = useState<number | null>(0);
 
+  useEffect(() => {
+    trackMeta("ViewContent", {
+      content_name: "Campanha de Natal Lar Esperança",
+      content_type: "product",
+      currency: "BRL",
+    });
+  }, []);
+
   function doar() {
+    trackMeta("InitiateCheckout", {
+      value: valor,
+      currency: "BRL",
+      content_name: "Doação Lar Esperança",
+      content_type: "product",
+      num_items: 1,
+    });
     router.push(`/doar?valor=${valor}`);
   }
 
@@ -111,7 +126,6 @@ export default function Home() {
               Quero ajudar agora
             </button>
           </div>
-
           <div className="rounded-3xl bg-white/95 p-8 shadow-[0_20px_50px_rgba(0,0,0,0.25)] backdrop-blur">
             <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
               Arrecadado até agora

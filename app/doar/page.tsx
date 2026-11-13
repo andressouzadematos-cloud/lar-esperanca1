@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { trackMeta, obterFbc, obterFbp } from "@/lib/meta-client";
 
 const VALORES = [25, 50, 100, 250, 500];
 
@@ -29,6 +30,15 @@ function FormularioDoacao() {
   const valorFinal = outro ? Number(outro) || 0 : valor;
 
   useEffect(() => {
+    trackMeta("AddPaymentInfo", {
+      value: inicial,
+      currency: "BRL",
+      content_name: "Doação Lar Esperança",
+      content_type: "product",
+    });
+  }, [inicial]);
+
+  useEffect(() => {
     if (!pix) return;
     const intervalo = setInterval(async () => {
       try {
@@ -45,6 +55,23 @@ function FormularioDoacao() {
     return () => clearInterval(intervalo);
   }, [pix]);
 
+  useEffect(() => {
+    if (status !== "paid" || !pix) return;
+
+    trackMeta(
+      "Purchase",
+      {
+        value: pix.valor,
+        currency: "BRL",
+        content_name: "Doação Lar Esperança",
+        content_type: "product",
+        num_items: 1,
+        order_id: pix.txId,
+      },
+      `purchase-${pix.txId}`
+    );
+  }, [status, pix]);
+
   async function gerarPix(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
@@ -54,7 +81,15 @@ function FormularioDoacao() {
       const r = await fetch("/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ nome, email, documento, telefone, valor: valorFinal }),
+        body: JSON.stringify({
+          nome,
+          email,
+          documento,
+          telefone,
+          valor: valorFinal,
+          fbc: obterFbc(),
+          fbp: obterFbp(),
+        }),
       });
 
       const dados = await r.json();

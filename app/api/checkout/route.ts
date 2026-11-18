@@ -3,7 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 
 const BASE = "https://nexuspag.com";
 
-const VALORES_PERMITIDOS = [500, 1000, 2500, 5000, 10000, 25000, 50000];
+const VALOR_MIN_CENTAVOS = 500;
+const VALOR_MAX_CENTAVOS = 10000;
 
 export async function POST(req: Request) {
   try {
@@ -15,9 +16,9 @@ export async function POST(req: Request) {
 
     const centavos = Math.round(Number(valor) * 100);
 
-    if (!VALORES_PERMITIDOS.includes(centavos)) {
+    if (centavos < VALOR_MIN_CENTAVOS || centavos > VALOR_MAX_CENTAVOS) {
       return NextResponse.json(
-        { error: "Valor não disponível para doação." },
+        { error: "Valor deve estar entre R$ 5 e R$ 100." },
         { status: 400 }
       );
     }

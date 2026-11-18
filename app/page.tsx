@@ -1,14 +1,15 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { trackMeta } from "@/lib/meta-client";
 
-const VALORES = [5, 10, 25, 50, 100, 250, 500];
+const VALORES = [5, 10, 25, 50, 100];
 
 const CARDS = [
   {
     titulo: "Comida na mesa",
-    descricao: "R$ 50 garante uma cesta básica completa para uma criança por uma semana.",
+    descricao: "R$ 25 garante uma cesta básica completa para uma criança por alguns dias.",
     icone: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-7 w-7">
         <path d="M3 11h18M5 11V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4M6 11v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-8" strokeLinecap="round" />
@@ -17,7 +18,7 @@ const CARDS = [
   },
   {
     titulo: "Brinquedo novo",
-    descricao: "R$ 100 coloca um presente embrulhado embaixo da árvore com o nome dela.",
+    descricao: "R$ 50 coloca um presente embrulhado embaixo da árvore com o nome dela.",
     icone: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-7 w-7">
         <rect x="3" y="8" width="18" height="13" rx="1" />
@@ -27,7 +28,7 @@ const CARDS = [
   },
   {
     titulo: "Natal completo",
-    descricao: "R$ 250 cobre ceia, presente e roupa nova para uma criança.",
+    descricao: "R$ 100 cobre ceia, presente e roupa nova para uma criança.",
     icone: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-7 w-7">
         <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" strokeLinecap="round" strokeLinejoin="round" />
@@ -44,7 +45,8 @@ const FAQ = [
   },
   {
     pergunta: "Posso doar qualquer valor?",
-    resposta: "Você pode escolher entre R$ 5, R$ 10, R$ 25, R$ 50, R$ 100, R$ 250 ou R$ 500. Qualquer valor ajuda.",
+    resposta:
+      "Você pode escolher entre R$ 5, R$ 10, R$ 25, R$ 50 ou R$ 100. Qualquer valor ajuda.",
   },
   {
     pergunta: "Recebo comprovante?",
@@ -126,6 +128,7 @@ export default function Home() {
               Quero ajudar agora
             </button>
           </div>
+
           <div className="rounded-3xl bg-white/95 p-8 shadow-[0_20px_50px_rgba(0,0,0,0.25)] backdrop-blur">
             <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
               Arrecadado até agora

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { trackMeta, obterFbc, obterFbp } from "@/lib/meta-client";
 
 const VALORES = [25, 50, 100, 250, 500];
 
 function FormularioDoacao() {
   const params = useSearchParams();
+  const router = useRouter();
   const inicial = Number(params.get("valor")) || 50;
 
   const [valor, setValor] = useState(inicial);
@@ -40,11 +41,13 @@ function FormularioDoacao() {
 
   useEffect(() => {
     if (!pix) return;
+
     const intervalo = setInterval(async () => {
       try {
         const r = await fetch(`/api/status/${pix.txId}`);
         const d = await r.json();
         setStatus(d.status);
+
         if (["paid", "expired", "failed", "cancelled"].includes(d.status)) {
           clearInterval(intervalo);
         }
@@ -52,6 +55,7 @@ function FormularioDoacao() {
         /* segue tentando */
       }
     }, 4000);
+
     return () => clearInterval(intervalo);
   }, [pix]);
 
@@ -70,7 +74,9 @@ function FormularioDoacao() {
       },
       `purchase-${pix.txId}`
     );
-  }, [status, pix]);
+
+    router.replace(`/obrigado?tx=${pix.txId}&valor=${pix.valor}`);
+  }, [status, pix, router]);
 
   async function gerarPix(e: React.FormEvent) {
     e.preventDefault();
@@ -120,21 +126,22 @@ function FormularioDoacao() {
       <main className="flex min-h-screen items-center justify-center bg-[#F0FDF4] px-5">
         <div className="max-w-md rounded-3xl bg-white p-10 text-center shadow-xl">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-10 w-10 text-green-600">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              className="h-10 w-10 text-green-600"
+            >
               <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <h1 className="mt-6 text-2xl font-black text-green-900">Doação confirmada!</h1>
-          <p className="mt-3 text-gray-600">
-            Obrigado por ajudar. Seu presente de R$ {pix.valor.toFixed(2).replace(".", ",")} vai
-            chegar a uma criança do Lar Esperança.
-          </p>
-          <a
-            href="/"
-            className="mt-8 inline-block rounded-full bg-green-600 px-8 py-4 font-bold text-white transition hover:bg-green-700"
-          >
-            Voltar ao início
-          </a>
+          <p className="mt-3 text-gray-600">Abrindo sua página de agradecimento...</p>
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-green-600" />
+            <span className="text-sm font-semibold text-green-800">Um instante</span>
+          </div>
         </div>
       </main>
     );

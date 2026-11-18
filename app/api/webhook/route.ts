@@ -1,128 +1,139 @@
 import { NextResponse } from "next/server";
-import { createHmac, timingSafeEqual } from "crypto";
+import crypto from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { enviarEventoMeta } from "@/lib/meta-capi";
 
-function assinaturaValida(corpoBruto: string, header: string | null): boolean {
-  const segredo = process.env.NEXUSPAG_WEBHOOK_SECRET;
-  if (!segredo || !header) return false;
+function validarAssinatura(bodyCru: string, header: string | null, segredo: string) {
+  if (!header) return false;
 
-  const partes = Object.fromEntries(
-    header.split(",").map((p) => {
-      const [k, v] = p.split("=");
-      return [k?.trim(), v?.trim()];
-    })
-  );
+  const partes = header.split(",").reduce<Record<string, string>>((acc, p) => {
+    const [k, v] = p.split("=");
+    if (k && v) acc[k.trim()] = v.trim();
+    return acc;
+  }, {});
 
-  const timestamp = partes["t"];
-  const recebido = partes["v1"];
-  if (!timestamp || !recebido) return false;
+  const t = partes["t"];
+  const v1 = partes["v1"];
 
-  const agora = Math.floor(Date.now() / 1000);
-  if (Math.abs(agora - Number(timestamp)) > 300) return false;
+  if (!t || !v1) return false;
 
-  const esperado = createHmac("sha256", segredo)
-    .update(`${timestamp}.${corpoBruto}`)
+  const esperado = crypto
+    .createHmac("sha256", segredo)
+    .update(`${t}.${bodyCru}`)
     .digest("hex");
 
-  if (recebido.length !== esperado.length) return false;
+  const a = Buffer.from(esperado, "utf8");
+  const b = Buffer.from(v1, "utf8");
 
-  try {
-    return timingSafeEqual(Buffer.from(recebido, "hex"), Buffer.from(esperado, "hex"));
-  } catch {
-    return false;
-  }
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 export async function POST(req: Request) {
+  const bodyCru = await req.text();
+  const assinatura = req.headers.get("x-webhook-signature");
+  const segredo = (process.env.NEXUSPAG_WEBHOOK_SECRET || "").trim();
+
+  if (segredo && !validarAssinatura(bodyCru, assinatura, segredo)) {
+    console.error("[webhook] assinatura inválida");
+    return NextResponse.json({ error: "Assinatura inválida." }, { status: 401 });
+  }
+
+  let payload: any;
   try {
-    const corpoBruto = await req.text();
-    const evento = req.headers.get("X-Webhook-Event") || "";
-    const assinatura = req.headers.get("X-Webhook-Signature");
+    payload = JSON.parse(bodyCru);
+  } catch {
+    return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+  }
 
-    if (!assinaturaValida(corpoBruto, assinatura)) {
-      return NextResponse.json({ error: "Assinatura inválida." }, { status: 401 });
-    }
+  const txId = payload?.transaction_id || payload?.id;
+  const status = payload?.status;
 
-    const payload = JSON.parse(corpoBruto);
-    const txId = payload?.transaction_id || payload?.txid;
-    const status = payload?.status;
+  if (!txId) {
+    return NextResponse.json({ error: "Sem transaction_id." }, { status: 400 });
+  }
 
-    if (!txId) return NextResponse.json({ ok: true });
+  const supabase = getSupabaseAdmin();
 
-    const mapa: Record<string, string> = {
-      "payment.confirmed": "paid",
-      "pix.payment.confirmed": "paid",
-    };
+  const { data: registro } = await supabase
+    .from("doacoes")
+    .select("id, status, valor_centavos, fbc, fbp, email, telefone, nome")
+    .eq("tx_id", String(txId))
+    .maybeSingle();
 
-    const novoStatus = mapa[evento] || status || "processing";
-    const supabase = getSupabaseAdmin();
-
-    const { data: pedido } = await supabase
-      .from("pedidos")
-      .select("tx_id, status, nome, email, documento, telefone, valor_centavos, kit, quantidade")
-      .eq("tx_id", String(txId))
-      .maybeSingle();
-
-    if (!pedido) {
-      console.error("Pedido não encontrado:", txId);
-      return NextResponse.json({ ok: true });
-    }
-
-    if (pedido.status === "paid" && novoStatus === "paid") {
-      return NextResponse.json({ ok: true, duplicado: true });
-    }
-
-    const atualizacao: Record<string, unknown> = {
-      status: novoStatus,
-      atualizado_em: new Date().toISOString(),
-    };
-
-    if (novoStatus === "paid") {
-      atualizacao.pago_em = payload?.paid_at || new Date().toISOString();
-    }
-
-    await supabase.from("pedidos").update(atualizacao).eq("tx_id", String(txId));
-
-    if (novoStatus === "paid") {
-      const ip =
-        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-        req.headers.get("x-real-ip") ||
-        undefined;
-
-      const userAgent = req.headers.get("user-agent") || undefined;
-
-      await enviarEventoMeta({
-        eventName: "Purchase",
-        eventId: `purchase-${txId}`,
-        eventSourceUrl: process.env.NEXT_PUBLIC_SITE_URL,
-        actionSource: "website",
-        userData: {
-          email: pedido.email,
-          telefone: pedido.telefone,
-          nome: pedido.nome,
-          documento: pedido.documento,
-          ip,
-          userAgent,
-        },
-        customData: {
-          value: pedido.valor_centavos / 100,
-          currency: "BRL",
-          contentName: pedido.kit || "Doação",
-          contentType: "product",
-          numItems: pedido.quantidade || 1,
-          orderId: String(txId),
-        },
-      });
-    }
-
-    return NextResponse.json({ ok: true, status: novoStatus });
-  } catch (erro) {
-    console.error("Erro no webhook:", erro);
+  if (!registro) {
+    console.error("[webhook] doação não encontrada:", txId);
     return NextResponse.json({ ok: true });
   }
-}
 
-export async function GET() {
-  return NextResponse.json({ ok: true, rota: "webhook" }, { status: 200 });
+  if (registro.status === "paid") {
+    return NextResponse.json({ ok: true });
+  }
+
+  if (status !== "paid") {
+    await supabase
+      .from("doacoes")
+      .update({ status: status || "pending", atualizado_em: new Date().toISOString() })
+      .eq("tx_id", String(txId));
+
+    return NextResponse.json({ ok: true });
+  }
+
+  await supabase
+    .from("doacoes")
+    .update({
+      status: "paid",
+      pago_em: new Date().toISOString(),
+      atualizado_em: new Date().toISOString(),
+    })
+    .eq("tx_id", String(txId));
+
+  const valor = registro.valor_centavos / 100;
+  const pixelId = process.env.META_PIXEL_ID;
+  const token = process.env.META_CAPI_TOKEN;
+
+  if (pixelId && token) {
+    const evento = {
+      data: [
+        {
+          event_name: "Purchase",
+          event_time: Math.floor(Date.now() / 1000),
+          event_id: `purchase-${txId}`,
+          action_source: "website",
+          event_source_url: `${process.env.NEXT_PUBLIC_SITE_URL}/obrigado?tx=${txId}`,
+          user_data: {
+            em: [crypto.createHash("sha256").update(String(registro.email).toLowerCase().trim()).digest("hex")],
+            ph: [crypto.createHash("sha256").update(String(registro.telefone).replace(/\D/g, "")).digest("hex")],
+            ...(registro.fbc ? { fbc: registro.fbc } : {}),
+            ...(registro.fbp ? { fbp: registro.fbp } : {}),
+          },
+          custom_data: {
+            currency: "BRL",
+            value: valor,
+            content_name: "Doação Lar Esperança",
+            content_type: "product",
+            order_id: String(txId),
+          },
+        },
+      ],
+    };
+
+    try {
+      const r = await fetch(
+        `https://graph.facebook.com/v21.0/${pixelId}/events?access_token=${token}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(evento),
+        }
+      );
+
+      if (!r.ok) {
+        console.error("[webhook] CAPI falhou:", await r.text());
+      }
+    } catch (e) {
+      console.error("[webhook] CAPI erro:", e);
+    }
+  }
+
+  return NextResponse.json({ ok: true });
 }

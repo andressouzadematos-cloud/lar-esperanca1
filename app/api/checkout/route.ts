@@ -7,7 +7,7 @@ const VALORES_PERMITIDOS = [500, 1000, 2500, 5000, 10000, 25000, 50000];
 
 export async function POST(req: Request) {
   try {
-    const { nome, email, documento, telefone, valor } = await req.json();
+    const { nome, email, documento, telefone, valor, fbc, fbp } = await req.json();
 
     if (!nome || !email || !documento || !telefone || !valor) {
       return NextResponse.json({ error: "Preencha todos os campos." }, { status: 400 });
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       headers: {
         accept: "application/json",
         "content-type": "application/json",
-        "x-api-key": process.env.NEXUSPAG_API_KEY!,
+        "x-api-key": (process.env.NEXUSPAG_API_KEY || "").trim(),
       },
       body: JSON.stringify({
         amount: centavos / 100,
@@ -80,6 +80,7 @@ export async function POST(req: Request) {
 
     await getSupabaseAdmin().from("doacoes").insert({
       tx_id: String(txId),
+      external_id: externalId,
       nome,
       email,
       documento: doc,
@@ -89,6 +90,8 @@ export async function POST(req: Request) {
       metodo: "pix",
       qr_code: qrCode,
       qr_code_texto: qrTexto,
+      fbc: fbc || null,
+      fbp: fbp || null,
     });
 
     return NextResponse.json({

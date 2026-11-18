@@ -4,12 +4,16 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { trackMeta, obterFbc, obterFbp } from "@/lib/meta-client";
 
-const VALORES = [25, 50, 100, 250, 500];
+const VALORES = [5, 10, 25, 50, 100];
+const VALOR_MIN = 5;
+const VALOR_MAX = 100;
 
 function FormularioDoacao() {
   const params = useSearchParams();
   const router = useRouter();
-  const inicial = Number(params.get("valor")) || 50;
+
+  const bruto = Number(params.get("valor")) || 50;
+  const inicial = bruto >= VALOR_MIN && bruto <= VALOR_MAX ? bruto : 50;
 
   const [valor, setValor] = useState(inicial);
   const [outro, setOutro] = useState("");
@@ -81,6 +85,12 @@ function FormularioDoacao() {
   async function gerarPix(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
+
+    if (valorFinal < VALOR_MIN || valorFinal > VALOR_MAX) {
+      setErro(`O valor deve estar entre R$ ${VALOR_MIN} e R$ ${VALOR_MAX}.`);
+      return;
+    }
+
     setCarregando(true);
 
     try {
@@ -238,8 +248,10 @@ function FormularioDoacao() {
             </div>
             <input
               type="number"
-              placeholder="Outro valor"
+              placeholder="Outro valor (R$ 5 a R$ 100)"
               value={outro}
+              min={VALOR_MIN}
+              max={VALOR_MAX}
               onChange={(e) => setOutro(e.target.value)}
               className="mt-2 w-full rounded-lg border-2 border-gray-200 px-4 py-3 font-bold text-gray-700 outline-none focus:border-green-600"
             />
